@@ -16,25 +16,14 @@ typedef complex<double> amplitude;
 typedef pair<amplitude, amplitude> state;
 
 state PLUS  = make_pair(amplitude(1/root2), amplitude(1/root2));
-state MINUS = make_pair(amplitude(1/root2), amplitude(-1/root2)); 
+state MINUS = make_pair(amplitude(1/root2), amplitude(-1/root2));
+state ONE   = make_pair(amplitude(0), amplitude(1)); 
+state ZERO  = make_pair(amplitude(1), amplitude(0)); 
 
 class Qubit {
 private:
 	amplitude alpha;
 	amplitude beta;
-public:
-	Qubit(amplitude a, amplitude b) {
-		double squareSum = norm(a) + norm(b);
-		if (squareSum == 0) {
-			throw "0|0>+0|1> is an invalid quantum state!";
-		} else if (squareSum != 1) {
-			cout << "Renormalizing input!" << endl;
-			a /= sqrt(squareSum);
-			b /= sqrt(squareSum);
-		}
-		alpha = a;
-		beta = b;
-	};
 	bool perform_measure(amplitude zero_amp, amplitude one_amp) {
 		bool observation;
 
@@ -50,6 +39,25 @@ public:
 		}
 		return observation;
 	}
+public:
+	Qubit(const Qubit&) = delete;
+	Qubit& operator=(const Qubit&) = delete;
+
+	Qubit(state s) {
+		Qubit(s.first, s.second);
+	}
+	Qubit(amplitude a, amplitude b) {
+		double squareSum = norm(a) + norm(b);
+		if (squareSum == 0) {
+			throw "0|0>+0|1> is an invalid quantum state!";
+		} else if (squareSum != 1) {
+			cout << "Renormalizing input!" << endl;
+			a /= sqrt(squareSum);
+			b /= sqrt(squareSum);
+		}
+		alpha = a;
+		beta = b;
+	};
 	bool observe() {
 		bool observation = perform_measure(alpha, beta);
 		if (observation) {
@@ -93,19 +101,91 @@ public:
 
 class Pulse {
 private:
-	vector<Qubit> qubits;
+	vector<Qubit*> qubits;
 public:
-	Pulse(vector<Qubit> _qubits) {
-		qubits = _qubits;
+	Pulse(vector<Qubit*>& _qubits) {
+		for (auto q : _qubits) {
+			qubits.push_back(q);
+		}
 	}
+
+	Qubit* extract() {
+		auto extractedQubit = qubits.back();
+		qubits.pop_back();
+		return extractedQubit;
+	}
+	int size() {
+		return qubits.size();
+	}
+	void insert(Qubit *qubit) {
+		qubits.push_back(qubit);
+	} 
 };
 
-class Sender  {
+template <class T>
+class RandomGenerator {
+public:
+	virtual T operator()();
+};
+
+class Generator  {
+private:
+RandomGenerator<int> 	pulseNumberGenerator;
+RandomGenerator<bool> 	basisGenerator;
+public:
+	Generator(RandomGenerator<int> gen) {
+		pulseNumberGenerator = gen;
+	}
+	Pulse createPulse(amplitude a, amplitude b) {
+		int pulseSize = pulseNumberGenerator();
+		vector<Qubit*> qubits;
+		for (int i = 0; i < pulseSize; ++i)
+		{
+			qubits.push_back(new Qubit(a,b));
+		}
+		return Pulse(qubits);
+	}
+	Pulse createPulse(state s) {
+		return createPulse(s.first, s.second);
+	}
+	Pulse createPulse(bool value, bool basis) {
+		if (basis) {
+			return value? createPulse(ONE):createPulse(ZERO);
+		} else {
+			return value? createPulse(MINUS):createPulse(PLUS);
+		}
+	}
+	Pulse createPulse(bool value) {
+		bool basis = basisGenerator();
+		return createPulse(value, basis);
+	}
 
 };
 
-class Receiver {
-
+class Detector {
+private:
+RandomGenerator<bool> 	darkCountGenerator;
+RandomGenerator<bool>	detectionGenerator; 
+public:
+	Detector(RandomGenerator<bool> dcGen, RandomGenerator<bool> dGen) {
+		darkCountGenerator = dcGen;
+		detectionGenerator = dGen;
+	}
+	int detectPulse(Pulse pulse, pair<state,state> basis) {
+		if (!detectionGenerator()) {
+			return -1;
+		}
+		int size = pulse.size;
+		Qubit &qubit = pulse[rand()%size];
+		return qubit.observe(basis)? 1:0;
+	}
+	int tick() {
+		if (darkCountGenerator()) {
+			return rand() % 2;
+		} else {
+			return -1;
+		}
+	}
 };
 
 int main() {
