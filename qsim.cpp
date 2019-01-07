@@ -9,7 +9,11 @@
 #include <cmath>
 
 using namespace std;
+
+#define eps (0.0001)
 #define root2 (sqrt(2))
+
+bool DEBUGPRINT = false;
 
 typedef complex<double> amplitude;
 typedef pair<amplitude, amplitude> state;
@@ -22,24 +26,27 @@ state ZERO  = make_pair(amplitude(1), amplitude(0));
 
 class Qubit {
 private:
-	amplitude alpha;
-	amplitude beta;
 	bool perform_measure(amplitude zero_amp, amplitude one_amp) {
 		bool observation;
 
-		int probA = (int) (norm(zero_amp) * 100000000);
-		int probB = (int) (norm(one_amp)  * 100000000);
+		int probA = (int) (norm(zero_amp) * (1<<((sizeof(int)*4)-1)));
+		int probB = (int) (norm(one_amp)  * (1<<((sizeof(int)*4)-1)));
 
 		int randValue = rand() % (probA+probB);
-		// cout << randValue << "(" << probA << "|" << probB << ")" << endl;
 		if (randValue < probA) {
 			observation = false;
 		} else {
 			observation = true;
 		}
+		if (DEBUGPRINT) {
+			cout << "qubit:" << alpha << "," << beta << " observed to be " << observation << "(";
+			cout << probA << "," << probB << "," << randValue << ")" << endl;
+		}
 		return observation;
 	}
 public:
+	amplitude alpha;
+	amplitude beta;
 	Qubit(const Qubit&) = delete;
 	Qubit& operator=(const Qubit&) = delete;
 
@@ -48,9 +55,10 @@ public:
 	}
 	Qubit(amplitude a, amplitude b) {
 		double squareSum = norm(a) + norm(b);
-		if (squareSum == 0) {
-			throw "0|0> + 0|1> is an invalid quantum state!";
-		} else if (squareSum != 1) {
+		if (abs(squareSum-0) <= eps) {
+			cout << "0|0> + 0|1> is an invalid quantum state!" << endl;
+			throw -1;
+		} else if (abs(squareSum-1) > eps) {
 			cout << "Renormalizing input!" << endl;
 			a /= sqrt(squareSum);
 			b /= sqrt(squareSum);
@@ -97,12 +105,31 @@ public:
 
 		return observation;
 	}
+	void changeState(amplitude a, amplitude b) {
+		double squareSum = norm(a) + norm(b);
+		if (abs(squareSum-0) < eps) {
+			cout << "0|0> + 0|1> is an invalid quantum state!" << endl;
+			throw -1;
+		} else if (abs(squareSum-1) > eps) {
+			cout << "Renormalizing input!" << endl;
+			a /= sqrt(squareSum);
+			b /= sqrt(squareSum);
+		}
+		alpha = a;
+		beta = b;
+	}
+	void changeState(state s) {
+		changeState(s.first, s.second);
+	}
 };
 
 class Pulse {
 private:
 	vector<Qubit*> qubits;
 public:
+	Pulse() {
+		qubits = vector<Qubit*>();
+	}
 	Pulse(vector<Qubit*>& _qubits) {
 		for (auto q : _qubits) {
 			qubits.push_back(q);
@@ -131,36 +158,44 @@ public:
 	} 
 };
 
-template <class T>
-class RandomGenerator {
+class IntFactory {
 public:
-	T operator()();
+	virtual int operator()(){};
 };
 
-template <class T1, class T2>
-class RandomTransformer {
+class BoolFactory {
 public:
-	T1 operator()(T2);
+	virtual bool operator()(){};
+};
+
+class StateTransformer{
+public:
+	virtual state operator()(state){};
+};
+
+class BasisTransformer{
+public:
+	virtual basis operator()(basis){};
 };
 
 class Generator  {
 private:
-RandomGenerator<int> 	pulseNumberGenerator;
-RandomGenerator<bool> 	basisChoiceGenerator;
-RandomTransformer<state, state> stateDeviationGenerator;
+IntFactory 	*pulseNumberGenerator;
+BoolFactory 	*basisChoiceGenerator;
+StateTransformer *stateDeviationGenerator;
 public:
-	Generator(RandomGenerator<int> png, RandomGenerator<bool> bcg,
-			  RandomTransformer<state, state> sdg) {
+	Generator(IntFactory *png, BoolFactory *bcg,
+			  StateTransformer *sdg) {
 		pulseNumberGenerator = png;
 		basisChoiceGenerator = bcg;
 		stateDeviationGenerator = sdg;
 	}
 	Pulse createPulse(amplitude a, amplitude b) {
-		int pulseSize = pulseNumberGenerator();
+		int pulseSize = pulseNumberGenerator->operator()();
 		vector<Qubit*> qubits;
 		for (int i = 0; i < pulseSize; ++i)
 		{
-			state deviatedState = stateDeviationGenerator(make_pair(a,b));
+			state deviatedState = stateDeviationGenerator->operator()(make_pair(a,b));
 			amplitude zero_amp  = deviatedState.first;
 			amplitude one_amp   = deviatedState.second; 
 			qubits.push_back(new Qubit(zero_amp, one_amp));
@@ -178,7 +213,7 @@ public:
 		}
 	}
 	Pulse createPulse(bool value) {
-		bool basisChoice = basisChoiceGenerator();
+		bool basisChoice = basisChoiceGenerator->operator()();
 		return createPulse(value, basisChoice);
 	}
 
@@ -187,112 +222,168 @@ public:
 class Detector {
 private:
 int darkCountRate;
-RandomGenerator<bool>	quantumEfficiencyGenerator;
-RandomGenerator<bool> 	basisChoiceGenerator;
-RandomTransformer<basis, basis> basisDeviationGenerator;
+BoolFactory	*quantumEfficiencyGenerator;
+BoolFactory 	*basisChoiceGenerator;
+BasisTransformer *basisDeviationGenerator;
 public:
-	Detector(int dcr, RandomGenerator<bool> qeGen,
-	 		 RandomGenerator<bool> bcGen,
-	 	     RandomTransformer<basis, basis> bdGen) {
+	Detector(int dcr, BoolFactory *qeGen,
+	 		 BoolFactory *bcGen,
+	 	     BasisTransformer *bdGen) {
 		darkCountRate = dcr;
 		quantumEfficiencyGenerator = qeGen;
 		basisChoiceGenerator = bcGen;
 		basisDeviationGenerator = bdGen;
 	}
 	int detectPulse(Pulse pulse, basis basisChoice) {
-		if (!quantumEfficiencyGenerator()) {
+		if (!(quantumEfficiencyGenerator->operator()())) {
 			return -1;
 		}
 		int size = pulse.size();
 		Qubit *qubit = pulse[rand()%size];
-		return qubit->observe(basisDeviationGenerator(basisChoice))? 1:0;
+		bool observation = qubit->observe(basisDeviationGenerator->operator()(basisChoice));
+		if (DEBUGPRINT) {
+			//cout << "Detecting qbit: " << qubit->alpha << "," << qubit->beta << endl;
+		}
+		return (observation)? 1:0;
 	}
 	int detectPulse(Pulse pulse) {
 		basis basisChoice;
-		if (basisChoiceGenerator()) {
+		if (basisChoiceGenerator->operator()()) {
+			if (DEBUGPRINT){
+				cout << "Choose diagonal basis" << endl;
+			}
 			basisChoice = make_pair(PLUS, MINUS);
 		} else {
+			if (DEBUGPRINT){
+				cout << "Choose normal basis" << endl;
+			}
 			basisChoice = make_pair(ZERO, ONE);
 		}
-		detectPulse(pulse, basisChoice);
+		return detectPulse(pulse, basisChoice);
+	}
+	int detectPulse(Pulse pulse, bool commonBasisChoice) {
+		basis basisChoice;
+		if (commonBasisChoice) {
+			if (DEBUGPRINT){
+				cout << "Choose diagonal basis" << endl;
+			}
+			basisChoice = make_pair(PLUS, MINUS);
+		} else {
+			if (DEBUGPRINT){
+				cout << "Choose normal basis" << endl;
+			}
+			basisChoice = make_pair(ZERO, ONE);
+		}
+		return detectPulse(pulse, basisChoice);
 	}
 };
 
+class Channel {
+private:
+	BoolFactory *absorptionRateGenerator;
+	StateTransformer *stateDeviationGenerator;
+public:
+	Channel(BoolFactory *arg, StateTransformer *sdg) {
+		absorptionRateGenerator = arg;
+		stateDeviationGenerator = sdg;
+	}
+	Pulse propagate(Pulse& pulse) {
+		Pulse propagatedPulse = Pulse();
+		while(pulse.size() > 0) {
+			auto extractedQubit = pulse.extract();
+			auto state = make_pair(extractedQubit->alpha, extractedQubit->beta);
+			extractedQubit->changeState(stateDeviationGenerator->operator()(state));
+
+			if (absorptionRateGenerator->operator()() == false)
+				propagatedPulse.insert(extractedQubit);
+		}
+		return propagatedPulse;
+	}
+};
 
 
 struct PulseNumberGeneratorInfo {
 	string name;
-	RandomGenerator<int> *pulseNumberGenerator;
-	PulseNumberGeneratorInfo(string _name, RandomGenerator<int> *png) {
+	IntFactory *generator;
+	PulseNumberGeneratorInfo(string _name, IntFactory *png) {
 		name = _name;
-		pulseNumberGenerator = png;
+		generator = png;
 	}
 };
 
-class IdealPulseNumberGenerator : public RandomGenerator<int> {
-	int operator()()  {
+class IdealPulseNumberGenerator : public IntFactory {
+	int operator()()  override{
 		return 1;
 	}
 };
 
-class PoissonPulseNumberGenerator : public RandomGenerator<int> {
+class PoissonPulseNumberGenerator : public IntFactory {
 	private:
 		default_random_engine gen = default_random_engine();
 		poisson_distribution<int> dist = poisson_distribution<int>(0);
 	public: 
-	int operator()(){
+	int operator()() override{
 		return 1+dist(gen);
 	}
 };
 
 struct BasisChoiceGeneratorInfo {
 	string name;
-	RandomGenerator<bool> *basisChoiceGenerator;
-	BasisChoiceGeneratorInfo(string _name, RandomGenerator<bool> *bcg) {
+	BoolFactory *generator;
+	BasisChoiceGeneratorInfo(string _name, BoolFactory *bcg) {
 		name = _name;
-		basisChoiceGenerator = bcg;
+		generator = bcg;
 	}
 };
 
-class IdealBasisChoiceGenerator : public RandomGenerator<bool> {
-	bool operator()() {
-		return rand()%2;
+class IdealBasisChoiceGenerator : public BoolFactory {
+	bool operator()() override{
+		return (rand()%2 == 0);
 	}
 };
 
-class AlwaysZeroOneBasisChoiceGenerator : public RandomGenerator<bool> {
-	bool operator()() {
+class AlwaysZeroOneBasisChoiceGenerator : public BoolFactory {
+	bool operator()() override{
 		return 0;
 	}
 };
 
 struct StateDeviationGeneratorInfo {
 	string name;
-	RandomTransformer<state, state> *stateDeviationGenerator;
-	StateDeviationGeneratorInfo(string _name, RandomTransformer<state, state> *sdg) {
+	StateTransformer *generator;
+	StateDeviationGeneratorInfo(string _name, StateTransformer *sdg) {
 		name = _name;
-		stateDeviationGenerator = sdg;
+		generator = sdg;
 	}
 };
 
-class IdealStateDeviationGenerator : public RandomTransformer<state, state> {
-	state operator()(state s) {
+class IdealStateDeviationGenerator : public StateTransformer {
+	state operator()(state s) override{
 		return s;
 	}
 };
 
-class UniformCentiRadianStateDeviationGenerator : public RandomTransformer<state, state> {
+class UniformCentiRadianStateDeviationGenerator : public StateTransformer {
 private:
 	default_random_engine gen = default_random_engine();
 	uniform_real_distribution<double> dist = uniform_real_distribution<double>(-0.01, 0.01);
 public:
-	state operator()(state s) {
+	state operator()(state s) override{
 		auto zero_amp = s.first;
 		auto one_amp = s.second;
 
-		complex<double> phaseDelta = zero_amp / abs(zero_amp);
-		double phi = arg(one_amp) - arg(zero_amp);
-		double theta = 2 * acos(abs(zero_amp));
+		double theta, phi;
+		complex<double> phaseDelta;
+		if (abs(zero_amp) == 0 || abs(one_amp) == 0) {
+			theta = (abs(zero_amp) == 0) ? 3.14159 : 0;
+			phi = 0;
+			phaseDelta = 1;
+		} else {
+			phaseDelta = zero_amp / abs(zero_amp);
+			phi = arg(one_amp) - arg(zero_amp);
+			theta = 2 * acos(abs(zero_amp));
+		}
+
 
 		double deviated_phi = phi + dist(gen);
 		double deviated_theta = theta + dist(gen);
@@ -306,34 +397,54 @@ public:
 
 struct QuantumEfficiencyGeneratorInfo {
 	string name;
-	RandomGenerator<bool> *quantumEfficiencyGenerator;
-	QuantumEfficiencyGeneratorInfo(string _name, RandomGenerator<bool> *qeg) {
+	BoolFactory *generator;
+	QuantumEfficiencyGeneratorInfo(string _name, BoolFactory *qeg) {
 		name = _name;
-		quantumEfficiencyGenerator = qeg;
+		generator = qeg;
 	}
 };
 
-class IdealQuantumEfficiencyGenerator : public RandomGenerator<bool> {
-	bool operator()(){
+class IdealQuantumEfficiencyGenerator : public BoolFactory {
+	bool operator()() override{
 		return true;
 	}
 };
 
 struct BasisDeviationGeneratorInfo {
 	string name;
-	RandomTransformer<basis, basis> *basisDeviationGenerator;
-	BasisDeviationGeneratorInfo(string _name, RandomTransformer<basis, basis> *bdg) {
+	BasisTransformer *generator;
+	BasisDeviationGeneratorInfo(string _name, BasisTransformer *bdg) {
 		name = _name;
-		basisDeviationGenerator = bdg;
+		generator = bdg;
 	}
 };
 
-class IdealBasisDeviationGenerator : public RandomTransformer<basis, basis> {
-	basis operator()(basis b) {
+class IdealBasisDeviationGenerator : public BasisTransformer {
+	basis operator()(basis b) override{
 		return b;
 	}
 };
 
+struct AbsorptionRateGeneratorInfo {
+	string name;
+	BoolFactory *generator;
+	AbsorptionRateGeneratorInfo(string _name, BoolFactory *arg) {
+		name = _name;
+		generator = arg;
+	}
+};
+
+class IdealAbsorptionRateGenerator : public BoolFactory {
+	bool operator()() override{
+		return false;
+	}
+};
+
+class AlmostIdealAbsorptionRateGenerator : public BoolFactory {
+	bool operator()() override{
+		return ((rand()%100) < 10);
+	}
+};
 struct GeneratorInfo {
 	string name;
 	Generator *generator;
@@ -363,6 +474,19 @@ struct DetectorInfo {
 		quantumEfficiencyGeneratorName = qeg;
 		basisChoiceGeneratorName = bcg;
 		basisDeviationGeneratorName = bdg;
+	}
+};
+
+struct ChannelInfo {
+	string name;
+	Channel *channel;
+	string AbsorptionRateGeneratorName;
+	string stateDeviationGeneratorName;
+	ChannelInfo(string _name, Channel *chan, string arg, string sdg) {
+		name = _name;
+		channel = chan;
+		AbsorptionRateGeneratorName = arg;
+		stateDeviationGeneratorName = sdg;
 	}
 };
 
@@ -405,38 +529,61 @@ int main() {
 		"Ideal Basis Deviation Generator", new IdealBasisDeviationGenerator());
 	BasisDeviationGenerators.push_back(idealBasisDeviationGenerator);
 
+	vector<AbsorptionRateGeneratorInfo> AbsorptionRateGenerators;
+	auto idealAbsorptionRateGenerator = AbsorptionRateGeneratorInfo(
+		"Ideal Aborption Rate Generator", new IdealAbsorptionRateGenerator());
+	auto almostIdealAbsorptionRateGenerator = AbsorptionRateGeneratorInfo(
+		"10% Absorption Rate Generator", new AlmostIdealAbsorptionRateGenerator());
+	AbsorptionRateGenerators.push_back(idealAbsorptionRateGenerator);
+	AbsorptionRateGenerators.push_back(almostIdealAbsorptionRateGenerator);
+
 	vector<GeneratorInfo> Generators;
-	auto idealGenerator = Generator(IdealPulseNumberGenerator(),
-									IdealBasisChoiceGenerator(),
-									IdealStateDeviationGenerator());
+	auto idealGenerator = Generator(idealPulseNumberGenerator.generator,
+									idealBasisChoiceGenerator.generator,
+									idealStateDeviationGenerator.generator);
 	auto idealGeneratorInfo = GeneratorInfo("Ideal Generator", &idealGenerator,
-											 "Ideal Pulse Number Generator",
-											 "Ideal Basis Choice Generator",
-											 "Ideal State Deviation Generator");
+											idealPulseNumberGenerator.name,
+											idealBasisChoiceGenerator.name,
+											idealStateDeviationGenerator.name);
 	Generators.push_back(idealGeneratorInfo);
 
 	vector<DetectorInfo> Detectors;
-	auto idealDetector = Detector(0, IdealQuantumEfficiencyGenerator(),
-								  IdealBasisChoiceGenerator(), 
-								  IdealBasisDeviationGenerator());
+	auto idealDetector = Detector(0, idealQuantumEfficiencyGenerator.generator,
+								  idealBasisChoiceGenerator.generator, 
+								  idealBasisDeviationGenerator.generator);
 	auto idealDetectorInfo = DetectorInfo("Ideal Detector", &idealDetector,
-										  0,
-										  "Ideal Quantum Efficiency Generator",
-										  "Ideal Basis Choice Generator",
-										  "Ideal Basis Deviation Generator");
+										0,
+										idealQuantumEfficiencyGenerator.name,
+								  		idealBasisChoiceGenerator.name, 
+								  		idealBasisDeviationGenerator.name);
 	Detectors.push_back(idealDetectorInfo);
+
+	vector<ChannelInfo> Channels;
+	auto idealChannel = Channel(idealAbsorptionRateGenerator.generator,
+								idealStateDeviationGenerator.generator);
+	auto idealChannelInfo = ChannelInfo("Ideal Channel", &idealChannel,
+										idealAbsorptionRateGenerator.name,
+										idealStateDeviationGenerator.name);
+	Channels.push_back(idealChannelInfo);
 
 	while(true) {
 		cout << "(1) View Generators" << endl;
 		cout << "(2) View Detectors" << endl;
-		cout << "(3) Add  Generators" << endl;
-		cout << "(4) Add  Detectors" << endl;
-		cout << "(5) Run a QKD algorithm" << endl;
+		cout << "(3) View Channels" << endl;
+		cout << "(4) Add  Generators" << endl;
+		cout << "(5) Add  Detectors" << endl;
+		cout << "(6) Add  Channels" << endl;
+		cout << "(7) Run a QKD algorithm" << endl;
+		cout << "(8) Turn Debug statements " << (DEBUGPRINT?"Off":"On") << endl;
 		cout << "What would you like to do:";
 		int choice;
 		cin >> choice;
 		cout << endl;
 		switch(choice) {
+			case 8:{
+				DEBUGPRINT = !DEBUGPRINT;
+				break;
+			}
 			case 1:{
 				int index = 1;
 				for (auto info: Generators) {
@@ -463,6 +610,17 @@ int main() {
 				break;
 			}
 			case 3:{
+				int index = 1;
+				for (auto info: Channels) {
+					cout << index << ") " << info.name << endl;
+					cout << "\tAbsorption Rate Generator: " << info.AbsorptionRateGeneratorName << endl;
+					cout << "\tState Deviation Generator: " << info.stateDeviationGeneratorName << endl;
+					cout << endl;
+					index++;
+				}
+				break;
+			}
+			case 4:{
 				int index;
 				int choice;
 
@@ -474,7 +632,8 @@ int main() {
 				cout << "Choose which pulse number generator to use: ";
 				cin >> choice;
 				if (choice <= 0 || choice > PulseNumberGenerators.size()){
-					throw "Out of Index png choice";
+					cout << "Out of Index png choice" << endl;
+					throw -1;
 				}
 				auto png = PulseNumberGenerators[choice-1];
 
@@ -486,7 +645,8 @@ int main() {
 				cout << "Choose which basis choice generator to use: ";
 				cin >> choice;
 				if (choice <= 0 || choice > BasisChoiceGenerators.size()){
-					throw "Out of Index bcg choice";
+					cout << "Out of Index bcg choice" << endl;
+					throw -1;
 				}
 				auto bcg = BasisChoiceGenerators[choice-1];
 
@@ -498,7 +658,8 @@ int main() {
 				cout << "Choose which state deviation generator to use: ";
 				cin >> choice;
 				if (choice <= 0 || choice > StateDeviationGenerators.size()){
-					throw "Out of Index sdg choice";
+					cout << "Out of Index sdg choice" << endl;
+					throw -1;
 				}
 				auto sdg = StateDeviationGenerators[choice-1];
 
@@ -506,13 +667,13 @@ int main() {
 				string name;
 				cin >> name;
 
-				auto generator = new Generator(*png.pulseNumberGenerator,
-										   *bcg.basisChoiceGenerator, 
-										   *sdg.stateDeviationGenerator);
+				auto generator = new Generator(png.generator,
+										   bcg.generator, 
+										   sdg.generator);
 				Generators.push_back(GeneratorInfo(name, generator, png.name, bcg.name, sdg.name));
 				break;
 			}
-			case 4:{
+			case 5:{
 				int index;
 				int choice;
 
@@ -528,7 +689,8 @@ int main() {
 				cout << "Choose which quantum efficiency generator to use: ";
 				cin >> choice;
 				if (choice <= 0 || choice > QuantumEfficiencyGenerators.size()){
-					throw "Out of Index qeg choice";
+					cout << "Out of Index qeg choice" << endl;
+					throw -1;
 				}
 				auto qeg = QuantumEfficiencyGenerators[choice-1];
 
@@ -540,7 +702,8 @@ int main() {
 				cout << "Choose which basis choice generator to use: ";
 				cin >> choice;
 				if (choice <= 0 || choice > BasisChoiceGenerators.size()){
-					throw "Out of Index bcg choice";
+					cout << "Out of Index bcg choice" << endl;
+					throw -1;
 				}
 				auto bcg = BasisChoiceGenerators[choice-1];
 
@@ -552,7 +715,8 @@ int main() {
 				cout << "Choose which basis deviation generator to use: ";
 				cin >> choice;
 				if (choice <= 0 || choice > BasisDeviationGenerators.size()){
-					throw "Out of Index bdg choice";
+					cout << "Out of Index bdg choice" << endl;
+					throw -1;
 				}
 				auto bdg = BasisDeviationGenerators[choice-1];
 
@@ -561,10 +725,225 @@ int main() {
 				cin >> name;
 
 				auto detector = new Detector(darkCountRate,
-										   *qeg.quantumEfficiencyGenerator,
-										   *bcg.basisChoiceGenerator, 
-										   *bdg.basisDeviationGenerator);
+										   qeg.generator,
+										   bcg.generator, 
+										   bdg.generator);
 				Detectors.push_back(DetectorInfo(name, detector, darkCountRate,qeg.name, bcg.name, bdg.name));
+				break;
+			}
+			case 6:{
+				int index;
+				int choice;
+
+				index = 1;
+				for (auto info: AbsorptionRateGenerators) {
+					cout << index << ")" << info.name << endl;
+					index++;
+				}
+				cout << "Choose which absorption rate generator to use: ";
+				cin >> choice;
+				if (choice <= 0 || choice > AbsorptionRateGenerators.size()){
+					cout << "Out of Index arg choice" << endl;
+					throw -1;
+				}
+				auto arg = AbsorptionRateGenerators[choice-1];
+
+				index = 1;
+				for (auto info: StateDeviationGenerators) {
+					cout << index << ")" << info.name << endl;
+					index++;
+				}
+				cout << "Choose which state deviation generator to use: ";
+				cin >> choice;
+				if (choice <= 0 || choice > StateDeviationGenerators.size()){
+					cout << "Out of Index sdg choice" << endl;
+					throw -1;
+				}
+				auto sdg = StateDeviationGenerators[choice-1];
+
+				cout << "Name the generator: ";
+				string name;
+				cin >> name;
+
+				auto channel = new Channel(arg.generator,
+										   sdg.generator);
+				Channels.push_back(ChannelInfo(name, channel, arg.name, sdg.name));
+				break;
+			}
+			case 7:{
+				int index;
+				int choice;
+
+				cout << "(1) Standard (No Eve)" << endl;
+				cout << "(2) Photon Splitting Attack" << endl;
+				cout << "(3) Naive Eve" << endl;
+				cout << "Choose which algortihm to run: ";
+				cin >> choice;
+
+				switch(choice) {
+					case 1:{					
+						index = 1;
+						for (auto info: Generators) {
+							cout << index << ")" << info.name << endl;
+							index++;
+						}
+						cout << "Choose which generator to use: ";
+						cin >> choice;
+						if (choice <= 0 || choice > Generators.size()){
+							cout << "Out of Index generator choice" << endl;
+							throw -1;
+						}
+						auto generator = Generators[choice-1].generator;
+
+						index = 1;
+						for (auto info: Detectors) {
+							cout << index << ")" << info.name << endl;
+							index++;
+						}
+						cout << "Choose which detector to use: ";
+						cin >> choice;
+						if (choice <= 0 || choice > Detectors.size()){
+							cout << "Out of Index detector choice" << endl;
+							throw -1;
+						}
+						auto detector = Detectors[choice-1].detector;
+
+						index = 1;
+						for (auto info: Channels) {
+							cout << index << ")" << info.name << endl;
+							index++;
+						}
+						cout << "Choose which channel to use: ";
+						cin >> choice;
+						if (choice <= 0 || choice > Channels.size()){
+							cout << "Out of Index channel choice" << endl;
+							throw -1;
+						}
+						auto channel = Channels[choice-1].channel;
+
+						cout << "(1)Generate random bitstring to transmit" << endl;
+						cout << "(2)Manually input bitstring to transmit" << endl;
+						cout << "Choose:";
+						cin >> choice;
+
+						string bitstring;
+						switch (choice) {
+							case 1: {
+								cout << "Enter bitstring length: ";
+								int len;
+								cin >> len;
+								for (int i = 0; i < len; ++i) {
+									bitstring += (rand()%2 == 0) ? "1":"0";
+								}
+								break;
+							}
+							case 2: {
+								// TODO: add check if string entered is bitstring
+								cin >> bitstring;
+								break;
+							}
+							default:{
+								cout << "Invalid choice for bitstring" << endl;
+								throw -1;
+							}
+						}
+
+						cout << "(1)Generate random basis chocies to transmit" << endl;
+						cout << "(2)Manually input basis choices as bitstring" << endl;
+						cout << "Choose:";
+						cin >> choice;
+
+						string sourceBasisChoiceString;
+						switch (choice) {
+							case 1: {
+								sourceBasisChoiceString = "auto";
+								break;
+							}
+							case 2: {
+								// TODO: add check if string entered is bitstring
+								cin >> sourceBasisChoiceString;
+								if (sourceBasisChoiceString.size() != bitstring.size()){
+									cout << "Mismatch in length of bitstring and basis choice bitstring" << endl;
+									throw -1;
+								}
+								break;
+							}
+							default:{
+								cout << "Invalid choice for basis choice bitstring" << endl;
+								throw -1;
+							}
+						}
+
+						cout << "(1)Generate random basis chocies for detector" << endl;
+						cout << "(2)Manually input basis choices for detector" << endl;
+						cout << "Choose:";
+						cin >> choice;
+
+						string detectorBasisChoiceString;
+						switch (choice) {
+							case 1: {
+								detectorBasisChoiceString = "auto";
+								break;
+							}
+							case 2: {
+								// TODO: add check if string entered is bitstring
+								cin >> detectorBasisChoiceString;
+								if (detectorBasisChoiceString.size() != bitstring.size()){
+									cout << "Mismatch in length of bitstring and basis choice bitstring" << endl;
+									throw -1;
+								}
+								break;
+							}
+							default:{
+								cout << "Invalid choice for basis choice bitstring" << endl;
+								throw -1;
+							}
+						}
+
+						cout << "Source Bitstring:" << endl;
+						cout << bitstring << endl;	
+						string transmittedString = "";
+						for (int i = 0; i < bitstring.size(); ++i) {
+							bool bit = (bitstring[i] == '1');
+							Pulse pulse = generator->createPulse(bit);
+							pulse = (sourceBasisChoiceString == "auto") ? 
+									 generator->createPulse(bit) :
+									 generator->createPulse(bit, sourceBasisChoiceString[i]=='1');
+							pulse = channel->propagate(pulse);
+							if (DEBUGPRINT) {
+								cout << "Pulse #" << i << ": ";
+								for (int i = 0; i < pulse.size(); ++i) {
+									cout << pulse[i]->alpha << ',' << pulse[i]->beta << "|";
+								}
+								cout << endl;
+							}
+							if (pulse.size() > 0) {
+								bool observation = (((detectorBasisChoiceString == "auto")?
+									 detector->detectPulse(pulse)
+									:detector->detectPulse(pulse, detectorBasisChoiceString[i])=='1') == 1);
+								if (DEBUGPRINT) {
+									cout << "Algo observation: " << observation << endl;
+									cout << "Transmitted so far: " << transmittedString << endl;
+								}
+								transmittedString += (observation) ? "1":"0";
+							}
+						}
+
+						cout << "Transmitted String:" << endl;
+						cout << transmittedString << endl;
+
+						int matching = 0;
+						for (int i = 0; i < transmittedString.size(); ++i) {
+							if (transmittedString[i] == bitstring[i])
+								matching++;
+						}
+						cout << "Accuracy of transmission: " << (matching*100.0/bitstring.size()) << "%" << endl;}
+						break;
+					}
+					default:{
+						cout << "Not implemented yet!" << endl;
+						break;
+					}
 				break;
 			}
 			default:{
