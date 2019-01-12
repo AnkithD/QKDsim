@@ -135,6 +135,9 @@ public:
 			qubits.push_back(q);
 		}
 	}
+	Pulse(Qubit* qubit){
+		qubits.push_back(qubit);
+	}
 
 	Qubit* extract() {
 		auto extractedQubit = qubits.back();
@@ -580,10 +583,6 @@ int main() {
 		cin >> choice;
 		cout << endl;
 		switch(choice) {
-			case 8:{
-				DEBUGPRINT = !DEBUGPRINT;
-				break;
-			}
 			case 1:{
 				int index = 1;
 				for (auto info: Generators) {
@@ -781,7 +780,7 @@ int main() {
 				cin >> choice;
 
 				switch(choice) {
-					case 1:{					
+					case 1: {					
 						index = 1;
 						for (auto info: Generators) {
 							cout << index << ")" << info.name << endl;
@@ -937,13 +936,232 @@ int main() {
 							if (transmittedString[i] == bitstring[i])
 								matching++;
 						}
-						cout << "Accuracy of transmission: " << (matching*100.0/bitstring.size()) << "%" << endl;}
+						cout << "Accuracy of transmission: " << (matching*100.0/bitstring.size()) << "%" << endl;
+						break;
+					}
+					case 2: {					
+						index = 1;
+						for (auto info: Generators) {
+							cout << index << ")" << info.name << endl;
+							index++;
+						}
+						cout << "Choose Alice's generator: ";
+						cin >> choice;
+						if (choice <= 0 || choice > Generators.size()){
+							cout << "Out of Index generator choice" << endl;
+							throw -1;
+						}
+						auto generator = Generators[choice-1].generator;
+
+						index = 1;
+						for (auto info: Detectors) {
+							cout << index << ")" << info.name << endl;
+							index++;
+						}
+						cout << "Choose Bob's detector to use: ";
+						cin >> choice;
+						if (choice <= 0 || choice > Detectors.size()){
+							cout << "Out of Index detector choice" << endl;
+							throw -1;
+						}
+						auto detector = Detectors[choice-1].detector;
+
+						index = 1;
+						for (auto info: Detectors) {
+							cout << index << ")" << info.name << endl;
+							index++;
+						}
+						cout << "Choose Eve's detector to use: ";
+						cin >> choice;
+						if (choice <= 0 || choice > Detectors.size()){
+							cout << "Out of Index Edetector choice" << endl;
+							throw -1;
+						}
+						auto Edetector = Detectors[choice-1].detector;
+
+
+						index = 1;
+						for (auto info: Generators) {
+							cout << index << ")" << info.name << endl;
+							index++;
+						}
+						cout << "Choose Eve's generator: ";
+						cin >> choice;
+						if (choice <= 0 || choice > Generators.size()){
+							cout << "Out of Index Egenerator choice" << endl;
+							throw -1;
+						}
+						auto Egenerator = Generators[choice-1].generator;
+
+						index = 1;
+						for (auto info: Channels) {
+							cout << index << ")" << info.name << endl;
+							index++;
+						}
+						cout << "Choose which channel to use: ";
+						cin >> choice;
+						if (choice <= 0 || choice > Channels.size()){
+							cout << "Out of Index channel choice" << endl;
+							throw -1;
+						}
+						auto channel = Channels[choice-1].channel;
+
+						cout << "(1)Generate random bitstring to transmit" << endl;
+						cout << "(2)Manually input bitstring to transmit" << endl;
+						cout << "Choose:";
+						cin >> choice;
+
+						string bitstring;
+						switch (choice) {
+							case 1: {
+								cout << "Enter bitstring length: ";
+								int len;
+								cin >> len;
+								for (int i = 0; i < len; ++i) {
+									bitstring += (rand()%2 == 0) ? "1":"0";
+								}
+								break;
+							}
+							case 2: {
+								// TODO: add check if string entered is bitstring
+								cin >> bitstring;
+								break;
+							}
+							default:{
+								cout << "Invalid choice for bitstring" << endl;
+								throw -1;
+							}
+						}
+
+						cout << "(1)Generate random basis chocies to transmit" << endl;
+						cout << "(2)Manually input basis choices as bitstring" << endl;
+						cout << "Choose:";
+						cin >> choice;
+
+						string sourceBasisChoiceString;
+						switch (choice) {
+							case 1: {
+								sourceBasisChoiceString = "auto";
+								break;
+							}
+							case 2: {
+								// TODO: add check if string entered is bitstring
+								cin >> sourceBasisChoiceString;
+								if (sourceBasisChoiceString.size() != bitstring.size()){
+									cout << "Mismatch in length of bitstring and basis choice bitstring" << endl;
+									throw -1;
+								}
+								break;
+							}
+							default:{
+								cout << "Invalid choice for basis choice bitstring" << endl;
+								throw -1;
+							}
+						}
+
+						cout << "(1)Generate random basis chocies for detector" << endl;
+						cout << "(2)Manually input basis choices for detector" << endl;
+						cout << "Choose:";
+						cin >> choice;
+
+						string detectorBasisChoiceString;
+						switch (choice) {
+							case 1: {
+								detectorBasisChoiceString = "auto";
+								break;
+							}
+							case 2: {
+								// TODO: add check if string entered is bitstring
+								cin >> detectorBasisChoiceString;
+								if (detectorBasisChoiceString.size() != bitstring.size()){
+									cout << "Mismatch in length of bitstring and basis choice bitstring" << endl;
+									throw -1;
+								}
+								break;
+							}
+							default:{
+								cout << "Invalid choice for basis choice bitstring" << endl;
+								throw -1;
+							}
+						}
+
+						cout << "Source Bitstring:" << endl;
+						cout << bitstring << endl;	
+						string transmittedString = "";
+						string interceptedString = "";
+						for (int i = 0; i < bitstring.size(); ++i) {
+							bool bit = (bitstring[i] == '1');
+							Pulse pulse = generator->createPulse(bit);
+							pulse = (sourceBasisChoiceString == "auto") ? 
+									 generator->createPulse(bit) :
+									 generator->createPulse(bit, sourceBasisChoiceString[i]=='1');
+							pulse = channel->propagate(pulse);
+							auto splitPhoton = pulse.extract();
+							bool observation = Edetector->detectPulse(Pulse(splitPhoton));
+							interceptedString +=  (observation) ? "1":"0";
+							if (pulse.size() == 0) {
+								if (DEBUGPRINT) {
+									cout << "Intercepted Single qubit pulse, Eve constructing new pulse" << endl;
+								}
+								pulse = Egenerator->createPulse(observation);
+							}
+							if (DEBUGPRINT) {
+								cout << "Pulse #" << i << ": ";
+								for (int i = 0; i < pulse.size(); ++i) {
+									cout << pulse[i]->alpha << ',' << pulse[i]->beta << "|";
+								}
+								cout << endl;
+							}
+							if (pulse.size() > 0) {
+								if (detectorBasisChoiceString == "auto") {
+									observation = (detector->detectPulse(pulse) == 1);
+								} else {
+									bool basisChoice = (detectorBasisChoiceString[i]=='1');
+									observation = (detector->detectPulse(pulse, basisChoice) == 1);
+								}
+								if (DEBUGPRINT) {
+									cout << "Algo observation: " << observation << endl;
+									cout << "Transmitted so far: " << transmittedString << endl;
+								}
+								transmittedString += (observation) ? "1":"0";
+							}
+						}
+
+						cout << "Transmitted String:" << endl;
+						cout << transmittedString << endl;
+						cout << "interceptedString" << endl;
+						cout << interceptedString << endl;
+
+						int matching = 0;
+						for (int i = 0; i < transmittedString.size(); ++i) {
+							if (transmittedString[i] == bitstring[i])
+								matching++;
+						}
+						cout << "Accuracy of Bob's bitstring: " << (matching*100.0/bitstring.size()) << "%" << endl;
+						matching = 0;
+						for (int i = 0; i < interceptedString.size(); ++i) {
+							if (interceptedString[i] == bitstring[i])
+								matching++;
+						}
+						cout << "Accuracy of Eve's bitstring: " << (matching*100.0/bitstring.size()) << "%" << endl;
+						matching = 0;
+						for (int i = 0; i < transmittedString.size(); ++i) {
+							if (transmittedString[i] == interceptedString[i])
+								matching++;
+						}
+						cout << "Correlation between Eve's and Bob's bitstring: " << (matching*100.0/bitstring.size()) << "%" << endl;
 						break;
 					}
 					default:{
 						cout << "Not implemented yet!" << endl;
 						break;
 					}
+				}
+
+				break;
+			}
+			case 8:{
+				DEBUGPRINT = !DEBUGPRINT;
 				break;
 			}
 			default:{
