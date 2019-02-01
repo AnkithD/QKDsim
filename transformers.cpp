@@ -5,16 +5,16 @@
 
 using namespace std;
 
-StateDeviationGeneratorInfo::StateDeviationGeneratorInfo(string _name, StateTransformer *sdg) {
+StateDeviationTransformerInfo::StateDeviationTransformerInfo(string _name, StateTransformer *sdg) {
 	name = _name;
 	generator = sdg;
 }
 
-state IdealStateDeviationGenerator::operator()(state s) {
+state IdealStateDeviationTransformer::operator()(state s) {
 	return s;
 }
 
-state UniformCentiRadianStateDeviationGenerator::operator()(state s) {
+state UniformCentiRadianStateDeviationTransformer::operator()(state s) {
 	auto zero_amp = s.first;
 	auto one_amp = s.second;
 
@@ -40,11 +40,11 @@ state UniformCentiRadianStateDeviationGenerator::operator()(state s) {
 	return make_pair(deviated_zero_amp, deviated_one_amp);
 }
 
-BasisDeviationGeneratorInfo::BasisDeviationGeneratorInfo(string _name, BasisTransformer *bdg) {
+BasisDeviationTransformerInfo::BasisDeviationTransformerInfo(string _name, BasisTransformer *bdg) {
 	name = _name;
 	generator = bdg;
 }
 
-basis IdealBasisDeviationGenerator::operator()(basis b){
+basis IdealBasisDeviationTransformer::operator()(basis b){
 	return b;
 }

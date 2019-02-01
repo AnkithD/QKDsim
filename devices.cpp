@@ -9,16 +9,16 @@ using namespace std;
 
 
 Generator::Generator(IntFactory *png, BoolFactory *bcg, StateTransformer *sdg) {
-	pulseNumberGenerator = png;
-	basisChoiceGenerator = bcg;
-	stateDeviationGenerator = sdg;
+	pulseNumberFactory = png;
+	basisChoiceFactory = bcg;
+	stateDeviationTransformer = sdg;
 }
 Pulse Generator::createPulse(amplitude a, amplitude b) {
-	int pulseSize = pulseNumberGenerator->operator()();
+	int pulseSize = pulseNumberFactory->operator()();
 	vector<Qubit*> qubits;
 	for (int i = 0; i < pulseSize; ++i)
 	{
-		state deviatedState = stateDeviationGenerator->operator()(make_pair(a,b));
+		state deviatedState = stateDeviationTransformer->operator()(make_pair(a,b));
 		amplitude zero_amp  = deviatedState.first;
 		amplitude one_amp   = deviatedState.second; 
 		qubits.push_back(new Qubit(zero_amp, one_amp));
@@ -36,24 +36,24 @@ Pulse Generator::createPulse(bool value, bool basisChoice) {
 	}
 }
 Pulse Generator::createPulse(bool value) {
-	bool basisChoice = basisChoiceGenerator->operator()();
+	bool basisChoice = basisChoiceFactory->operator()();
 	return createPulse(value, basisChoice);
 }
 
 
 Detector::Detector(int dcr, BoolFactory *qeGen, BoolFactory *bcGen, BasisTransformer *bdGen) {
 	darkCountRate = dcr;
-	quantumEfficiencyGenerator = qeGen;
-	basisChoiceGenerator = bcGen;
-	basisDeviationGenerator = bdGen;
+	quantumEfficiencyFactory = qeGen;
+	basisChoiceFactory = bcGen;
+	basisDeviationTransformer = bdGen;
 }
 int Detector::detectPulse(Pulse pulse, basis basisChoice) {
-	if (!(quantumEfficiencyGenerator->operator()())) {
+	if (!(quantumEfficiencyFactory->operator()())) {
 		return -1;
 	}
 	int size = pulse.size();
 	Qubit *qubit = pulse[rand()%size];
-	bool observation = qubit->observe(basisDeviationGenerator->operator()(basisChoice));
+	bool observation = qubit->observe(basisDeviationTransformer->operator()(basisChoice));
 	if (DEBUGPRINT) {
 		//cout << "Detecting qbit: " << qubit->alpha << "," << qubit->beta << endl;
 	}
@@ -61,7 +61,7 @@ int Detector::detectPulse(Pulse pulse, basis basisChoice) {
 }
 int Detector::detectPulse(Pulse pulse) {
 	basis basisChoice;
-	if (basisChoiceGenerator->operator()()) {
+	if (basisChoiceFactory->operator()()) {
 		if (DEBUGPRINT){
 			cout << "Choose diagonal basis" << endl;
 		}
@@ -92,17 +92,17 @@ int Detector::detectPulse(Pulse pulse, bool commonBasisChoice) {
 
 
 Channel::Channel(BoolFactory *arg, StateTransformer *sdg) {
-	absorptionRateGenerator = arg;
-	stateDeviationGenerator = sdg;
+	absorptionRateFactory = arg;
+	stateDeviationTransformer = sdg;
 }
 Pulse Channel::propagate(Pulse& pulse) {
 	Pulse propagatedPulse = Pulse();
 	while(pulse.size() > 0) {
 		auto extractedQubit = pulse.extract();
 		auto state = make_pair(extractedQubit->alpha, extractedQubit->beta);
-		extractedQubit->changeState(stateDeviationGenerator->operator()(state));
+		extractedQubit->changeState(stateDeviationTransformer->operator()(state));
 
-		if (absorptionRateGenerator->operator()() == false)
+		if (absorptionRateFactory->operator()() == false)
 			propagatedPulse.insert(extractedQubit);
 	}
 	return propagatedPulse;
@@ -111,23 +111,23 @@ Pulse Channel::propagate(Pulse& pulse) {
 GeneratorInfo::GeneratorInfo(string _name, Generator *gen, string png, string bcg, string sdg) {
 	name = _name;
 	generator = gen;
-	pulseNumberGeneratorName = png;
-	basisChoiceGeneratorName = bcg;
-	stateDeviationGeneratorName = sdg;
+	pulseNumberFactoryName = png;
+	basisChoiceFactoryName = bcg;
+	stateDeviationTransformerName = sdg;
 }
 
 DetectorInfo::DetectorInfo(string _name, Detector *det, int dcr, string qeg, string bcg, string bdg) {
 	name = _name;
 	detector = det;
 	darkCountRate = dcr;
-	quantumEfficiencyGeneratorName = qeg;
-	basisChoiceGeneratorName = bcg;
-	basisDeviationGeneratorName = bdg;
+	quantumEfficiencyFactoryName = qeg;
+	basisChoiceFactoryName = bcg;
+	basisDeviationTransformerName = bdg;
 }
 
 ChannelInfo::ChannelInfo(string _name, Channel *chan, string arg, string sdg) {
 	name = _name;
 	channel = chan;
-	AbsorptionRateGeneratorName = arg;
-	stateDeviationGeneratorName = sdg;
+	AbsorptionRateFactoryName = arg;
+	stateDeviationTransformerName = sdg;
 }

@@ -12,9 +12,9 @@ using namespace std;
 
 class Generator  {
 private:
-IntFactory 			*pulseNumberGenerator;
-BoolFactory 		*basisChoiceGenerator;
-StateTransformer 	*stateDeviationGenerator;
+IntFactory 			*pulseNumberFactory;
+BoolFactory 		*basisChoiceFactory;
+StateTransformer 	*stateDeviationTransformer;
 public:
 	Generator(IntFactory *png, BoolFactory *bcg, StateTransformer *sdg);
 	Pulse createPulse(amplitude a, amplitude b);
@@ -26,9 +26,9 @@ public:
 class Detector {
 private:
 int darkCountRate;
-BoolFactory	*quantumEfficiencyGenerator;
-BoolFactory 	*basisChoiceGenerator;
-BasisTransformer *basisDeviationGenerator;
+BoolFactory	*quantumEfficiencyFactory;
+BoolFactory 	*basisChoiceFactory;
+BasisTransformer *basisDeviationTransformer;
 public:
 	Detector(int dcr, BoolFactory *qeGen, BoolFactory *bcGen, BasisTransformer *bdGen);
 	int detectPulse(Pulse pulse, basis basisChoice);
@@ -38,8 +38,8 @@ public:
 
 class Channel {
 private:
-	BoolFactory *absorptionRateGenerator;
-	StateTransformer *stateDeviationGenerator;
+	BoolFactory *absorptionRateFactory;
+	StateTransformer *stateDeviationTransformer;
 public:
 	Channel(BoolFactory *arg, StateTransformer *sdg);
 	Pulse propagate(Pulse& pulse);
@@ -48,9 +48,9 @@ public:
 struct GeneratorInfo {
 	string name;
 	Generator *generator;
-	string pulseNumberGeneratorName;
-	string 	basisChoiceGeneratorName;
-	string 	stateDeviationGeneratorName;
+	string pulseNumberFactoryName;
+	string 	basisChoiceFactoryName;
+	string 	stateDeviationTransformerName;
 	GeneratorInfo(string _name, Generator *gen, string png, string bcg, string sdg);
 };
 
@@ -58,17 +58,17 @@ struct DetectorInfo {
 	string 	name;
 	Detector *detector;
 	int darkCountRate;
-	string	quantumEfficiencyGeneratorName;
-	string 	basisChoiceGeneratorName;
-	string  basisDeviationGeneratorName;
+	string	quantumEfficiencyFactoryName;
+	string 	basisChoiceFactoryName;
+	string  basisDeviationTransformerName;
 	DetectorInfo(string _name, Detector *det, int dcr, string qeg, string bcg, string bdg);
 };
 
 struct ChannelInfo {
 	string name;
 	Channel *channel;
-	string AbsorptionRateGeneratorName;
-	string stateDeviationGeneratorName;
+	string AbsorptionRateFactoryName;
+	string stateDeviationTransformerName;
 	ChannelInfo(string _name, Channel *chan, string arg, string sdg);
 };
 

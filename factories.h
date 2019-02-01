@@ -17,17 +17,17 @@ public:
 	virtual bool operator()(){};
 };
 
-struct PulseNumberGeneratorInfo {
+struct PulseNumberFactoryInfo {
 	string name;
 	IntFactory *generator;
-	PulseNumberGeneratorInfo(string _name, IntFactory *png);
+	PulseNumberFactoryInfo(string _name, IntFactory *png);
 };
 
-class IdealPulseNumberGenerator : public IntFactory {
+class IdealPulseNumberFactory : public IntFactory {
 	int operator()();
 };
 
-class PoissonPulseNumberGenerator : public IntFactory {
+class PoissonPulseNumberFactory : public IntFactory {
 	private:
 		default_random_engine gen = default_random_engine();
 		poisson_distribution<int> dist = poisson_distribution<int>(0);
@@ -35,41 +35,41 @@ class PoissonPulseNumberGenerator : public IntFactory {
 	int operator()() override;
 };
 
-struct BasisChoiceGeneratorInfo {
+struct BasisChoiceFactoryInfo {
 	string name;
 	BoolFactory *generator;
-	BasisChoiceGeneratorInfo(string _name, BoolFactory *bcg);
+	BasisChoiceFactoryInfo(string _name, BoolFactory *bcg);
 };
 
-class IdealBasisChoiceGenerator : public BoolFactory {
+class IdealBasisChoiceFactory : public BoolFactory {
 	bool operator()() override;
 };
 
-class AlwaysZeroOneBasisChoiceGenerator : public BoolFactory {
+class AlwaysZeroOneBasisChoiceFactory : public BoolFactory {
 	bool operator()() override;
 };
 
-struct QuantumEfficiencyGeneratorInfo {
+struct QuantumEfficiencyFactoryInfo {
 	string name;
 	BoolFactory *generator;
-	QuantumEfficiencyGeneratorInfo(string _name, BoolFactory *qeg);
+	QuantumEfficiencyFactoryInfo(string _name, BoolFactory *qeg);
 };
 
-class IdealQuantumEfficiencyGenerator : public BoolFactory {
+class IdealQuantumEfficiencyFactory : public BoolFactory {
 	bool operator()() override;
 };
 
-struct AbsorptionRateGeneratorInfo {
+struct AbsorptionRateFactoryInfo {
 	string name;
 	BoolFactory *generator;
-	AbsorptionRateGeneratorInfo(string _name, BoolFactory *arg);
+	AbsorptionRateFactoryInfo(string _name, BoolFactory *arg);
 };
 
-class IdealAbsorptionRateGenerator : public BoolFactory {
+class IdealAbsorptionRateFactory : public BoolFactory {
 	bool operator()() override;
 };
 
-class AlmostIdealAbsorptionRateGenerator : public BoolFactory {
+class AlmostIdealAbsorptionRateFactory : public BoolFactory {
 	bool operator()() override;
 };
 
