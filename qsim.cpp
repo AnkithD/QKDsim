@@ -19,77 +19,29 @@ using namespace std;
 int main() {
 	srand(time(NULL));
 
-	vector<PulseNumberFactoryInfo> PulseNumberFactories;
-	auto idealPulseNumberFactory = PulseNumberFactoryInfo(
-		"Ideal Pulse Number Factory", new IdealPulseNumberFactory());
-	auto poissonPulseNumberFactory = PulseNumberFactoryInfo(
-		"Poisson Pulse Number Factory", new PoissonPulseNumberFactory());
-	PulseNumberFactories.push_back(idealPulseNumberFactory);
-	PulseNumberFactories.push_back(poissonPulseNumberFactory);
-
-	vector<BasisChoiceFactoryInfo> BasisChoiceFactories;
-	auto idealBasisChoiceFactory = BasisChoiceFactoryInfo(
-		"Ideal Basis Choice Factory", new IdealBasisChoiceFactory());
-	auto alwaysZeroOneBasisChoiceFactory = BasisChoiceFactoryInfo(
-		"Always |0>,|1> Basis Choice Factory", new AlwaysZeroOneBasisChoiceFactory());
-	BasisChoiceFactories.push_back(idealBasisChoiceFactory);
-	BasisChoiceFactories.push_back(alwaysZeroOneBasisChoiceFactory);
-
-
-	vector<StateDeviationTransformerInfo> StateDeviationTransformers;
-	auto idealStateDeviationTransformer = StateDeviationTransformerInfo(
-		"Ideal State Deviation Transformer", new IdealStateDeviationTransformer());
-	auto uniformCentiRadianStateDeviationTransformer = StateDeviationTransformerInfo(
-		"Uniform 0.01-radian State Deviation Transformer",
-		new UniformCentiRadianStateDeviationTransformer());
-	StateDeviationTransformers.push_back(idealStateDeviationTransformer);
-	StateDeviationTransformers.push_back(uniformCentiRadianStateDeviationTransformer);
-
-	vector<QuantumEfficiencyFactoryInfo> QuantumEfficiencyFactories;
-	auto idealQuantumEfficiencyFactory = QuantumEfficiencyFactoryInfo(
-		"Ideal Quantum Efficiency Factory", new IdealQuantumEfficiencyFactory());
-	QuantumEfficiencyFactories.push_back(idealQuantumEfficiencyFactory);
-
-	vector<BasisDeviationTransformerInfo> BasisDeviationTransformers;
-	auto idealBasisDeviationTransformer = BasisDeviationTransformerInfo(
-		"Ideal Basis Deviation Transformer", new IdealBasisDeviationTransformer());
-	BasisDeviationTransformers.push_back(idealBasisDeviationTransformer);
-
-	vector<AbsorptionRateFactoryInfo> AbsorptionRateFactories;
-	auto idealAbsorptionRateFactory = AbsorptionRateFactoryInfo(
-		"Ideal Aborption Rate Factory", new IdealAbsorptionRateFactory());
-	auto almostIdealAbsorptionRateFactory = AbsorptionRateFactoryInfo(
-		"10% Absorption Rate Factory", new AlmostIdealAbsorptionRateFactory());
-	AbsorptionRateFactories.push_back(idealAbsorptionRateFactory);
-	AbsorptionRateFactories.push_back(almostIdealAbsorptionRateFactory);
+	auto idealPNF = new IdealPulseNumberFactory();
+	auto idealBCF = new IdealBasisChoiceFactory();
+	auto idealSDT = new IdealStateDeviationTransformer();
+	auto idealQEF = new IdealQuantumEfficiencyFactory();
+	auto idealBDT = new IdealBasisDeviationTransformer();
+	auto idealARF = new IdealAbsorptionRateFactory();
 
 	vector<GeneratorInfo> Generators;
-	auto idealGenerator = Generator(idealPulseNumberFactory.generator,
-									idealBasisChoiceFactory.generator,
-									idealStateDeviationTransformer.generator);
+	auto idealGenerator = Generator(idealPNF, idealBCF, idealSDT);
 	auto idealGeneratorInfo = GeneratorInfo("Ideal Generator", &idealGenerator,
-											idealPulseNumberFactory.name,
-											idealBasisChoiceFactory.name,
-											idealStateDeviationTransformer.name);
+											idealPNF->name, idealBCF->name, idealSDT->name);
 	Generators.push_back(idealGeneratorInfo);
 
 	vector<DetectorInfo> Detectors;
-	auto idealDetector = Detector(0, idealQuantumEfficiencyFactory.generator,
-								  idealBasisChoiceFactory.generator, 
-								  idealBasisDeviationTransformer.generator);
+	auto idealDetector = Detector(0, idealQEF, idealBCF, idealBDT); 
 	auto idealDetectorInfo = DetectorInfo("Ideal Detector", &idealDetector,
-										0,
-										idealQuantumEfficiencyFactory.name,
-								  		idealBasisChoiceFactory.name, 
-								  		idealBasisDeviationTransformer.name);
+										 0, idealQEF->name, idealBCF->name, idealSDT->name);
 	Detectors.push_back(idealDetectorInfo);
 
 	vector<ChannelInfo> Channels;
-	auto idealChannel = Channel(idealAbsorptionRateFactory.generator,
-								idealStateDeviationTransformer.generator);
+	auto idealChannel = Channel(idealARF, idealSDT);
 	auto idealChannelInfo = ChannelInfo("Ideal Channel", &idealChannel,
-										idealAbsorptionRateFactory.name,
-										idealStateDeviationTransformer.name);
+										idealARF->name, idealSDT->name);
 	Channels.push_back(idealChannelInfo);
 
 	while(true) {
@@ -143,156 +95,55 @@ int main() {
 				break;
 			}
 			case 4:{
-				int index;
-				int choice;
+				// Add a generator
 
-				index = 1;
-				for (auto info: PulseNumberFactories) {
-					cout << index << ")" << info.name << endl;
-					index++;
-				}
-				cout << "Choose which pulse number factory to use: ";
-				cin >> choice;
-				if (choice <= 0 || choice > PulseNumberFactories.size()){
-					cout << "Out of Index png choice" << endl;
-					throw -1;
-				}
-				auto png = PulseNumberFactories[choice-1];
-
-				index = 1;
-				for (auto info: BasisChoiceFactories) {
-					cout << index << ")" << info.name << endl;
-					index++;
-				}
-				cout << "Choose which basis choice factory to use: ";
-				cin >> choice;
-				if (choice <= 0 || choice > BasisChoiceFactories.size()){
-					cout << "Out of Index bcg choice" << endl;
-					throw -1;
-				}
-				auto bcg = BasisChoiceFactories[choice-1];
-
-				index = 1;
-				for (auto info: StateDeviationTransformers) {
-					cout << index << ")" << info.name << endl;
-					index++;
-				}
-				cout << "Choose which state deviation transformer to use: ";
-				cin >> choice;
-				if (choice <= 0 || choice > StateDeviationTransformers.size()){
-					cout << "Out of Index sdg choice" << endl;
-					throw -1;
-				}
-				auto sdg = StateDeviationTransformers[choice-1];
+				auto pnf = choosePulseNumberFactory();
+				auto bcf = chooseBasisChoiceFactory();
+				auto sdt = chooseStateDeviationTransformer();
 
 				cout << "Name the generator: ";
 				string name;
 				cin >> name;
 
-				auto generator = new Generator(png.generator,
-										   bcg.generator, 
-										   sdg.generator);
-				Generators.push_back(GeneratorInfo(name, generator, png.name, bcg.name, sdg.name));
+				auto generator = new Generator(pnf, bcf, sdt);
+				Generators.push_back(GeneratorInfo(name, generator, pnf->name, bcf->name, sdt->name));
 				break;
 			}
 			case 5:{
-				int index;
-				int choice;
-
+				// Add a Detector
+				
 				cout << "Enter Detector dark count rate in Hz: ";
 				int darkCountRate;
 				cin >> darkCountRate;
 
-				index = 1;
-				for (auto info: QuantumEfficiencyFactories) {
-					cout << index << ")" << info.name << endl;
-					index++;
-				}
-				cout << "Choose which quantum efficiency factory to use: ";
-				cin >> choice;
-				if (choice <= 0 || choice > QuantumEfficiencyFactories.size()){
-					cout << "Out of Index qeg choice" << endl;
-					throw -1;
-				}
-				auto qeg = QuantumEfficiencyFactories[choice-1];
-
-				index = 1;
-				for (auto info: BasisChoiceFactories) {
-					cout << index << ")" << info.name << endl;
-					index++;
-				}
-				cout << "Choose which basis choice factory to use: ";
-				cin >> choice;
-				if (choice <= 0 || choice > BasisChoiceFactories.size()){
-					cout << "Out of Index bcg choice" << endl;
-					throw -1;
-				}
-				auto bcg = BasisChoiceFactories[choice-1];
-
-				index = 1;
-				for (auto info: BasisDeviationTransformers) {
-					cout << index << ")" << info.name << endl;
-					index++;
-				}
-				cout << "Choose which basis deviation transformer to use: ";
-				cin >> choice;
-				if (choice <= 0 || choice > BasisDeviationTransformers.size()){
-					cout << "Out of Index bdg choice" << endl;
-					throw -1;
-				}
-				auto bdg = BasisDeviationTransformers[choice-1];
+				auto qef = chooseQuantumEfficiencyFactory();
+				auto bcf = chooseBasisChoiceFactory();
+				auto bdt = chooseBasisDeviationTransformer();
 
 				cout << "Name the Detector: ";
 				string name;
 				cin >> name;
 
-				auto detector = new Detector(darkCountRate,
-										   qeg.generator,
-										   bcg.generator, 
-										   bdg.generator);
-				Detectors.push_back(DetectorInfo(name, detector, darkCountRate,qeg.name, bcg.name, bdg.name));
+				auto detector = new Detector(darkCountRate, qef, bcf, bdt);
+				Detectors.push_back(DetectorInfo(name, detector, darkCountRate, qef->name, bcf->name, bdt->name));
 				break;
 			}
 			case 6:{
-				int index;
-				int choice;
-
-				index = 1;
-				for (auto info: AbsorptionRateFactories) {
-					cout << index << ")" << info.name << endl;
-					index++;
-				}
-				cout << "Choose which absorption rate factory to use: ";
-				cin >> choice;
-				if (choice <= 0 || choice > AbsorptionRateFactories.size()){
-					cout << "Out of Index arg choice" << endl;
-					throw -1;
-				}
-				auto arg = AbsorptionRateFactories[choice-1];
-
-				index = 1;
-				for (auto info: StateDeviationTransformers) {
-					cout << index << ")" << info.name << endl;
-					index++;
-				}
-				cout << "Choose which state deviation transformer to use: ";
-				cin >> choice;
-				if (choice <= 0 || choice > StateDeviationTransformers.size()){
-					cout << "Out of Index sdg choice" << endl;
-					throw -1;
-				}
-				auto sdg = StateDeviationTransformers[choice-1];
+				// Add a Channel
+				
+				auto arf = chooseAbsorptionRateFactory();
+				auto sdt = chooseStateDeviationTransformer();
 
 				cout << "Name the generator: ";
 				string name;
 				cin >> name;
 
-				auto channel = new Channel(arg.generator,
-										   sdg.generator);
-				Channels.push_back(ChannelInfo(name, channel, arg.name, sdg.name));
+				auto channel = new Channel(arf, sdt);
+				Channels.push_back(ChannelInfo(name, channel, arf->name, sdt->name));
 				break;
 			}
 			case 7:{
+				// Run Algorithm
 				int index;
 				int choice;
 
@@ -303,7 +154,9 @@ int main() {
 				cin >> choice;
 
 				switch(choice) {
-					case 1: {					
+					case 1: {	
+						// No Eve
+
 						index = 1;
 						for (auto info: Generators) {
 							cout << index << ")" << info.name << endl;
@@ -462,7 +315,9 @@ int main() {
 						cout << "Accuracy of transmission: " << (matching*100.0/bitstring.size()) << "%" << endl;
 						break;
 					}
-					case 2: {					
+					case 2: {	
+						// Photon Splitting Attack
+
 						index = 1;
 						for (auto info: Generators) {
 							cout << index << ")" << info.name << endl;
@@ -684,6 +539,7 @@ int main() {
 				break;
 			}
 			case 8:{
+				// Toggle Debug printing
 				DEBUGPRINT = !DEBUGPRINT;
 				break;
 			}

@@ -1,6 +1,5 @@
 #ifndef _FACTORIES_H_
 #define _FACTORIES_H_
-
 #include <random>
 
 #include "constants.h"
@@ -9,68 +8,67 @@ using namespace std;
 
 class IntFactory {
 public:
+	string name;
 	virtual int operator()(){};
 };
 
 class BoolFactory {
 public:
+	string name;
 	virtual bool operator()(){};
 };
 
-struct PulseNumberFactoryInfo {
-	string name;
-	IntFactory *generator;
-	PulseNumberFactoryInfo(string _name, IntFactory *png);
-};
 
 class IdealPulseNumberFactory : public IntFactory {
-	int operator()();
-};
-
-class PoissonPulseNumberFactory : public IntFactory {
-	private:
-		default_random_engine gen = default_random_engine();
-		poisson_distribution<int> dist = poisson_distribution<int>(0);
-	public: 
+public:
+	IdealPulseNumberFactory();
 	int operator()() override;
 };
-
-struct BasisChoiceFactoryInfo {
-	string name;
-	BoolFactory *generator;
-	BasisChoiceFactoryInfo(string _name, BoolFactory *bcg);
+class PoissonPulseNumberFactory : public IntFactory {
+private:
+	default_random_engine gen;
+	poisson_distribution<int> dist;
+public: 
+	PoissonPulseNumberFactory();
+	PoissonPulseNumberFactory(int lambda);
+	int operator()() override;
 };
+IntFactory* choosePulseNumberFactory();
+
 
 class IdealBasisChoiceFactory : public BoolFactory {
+public:
+	IdealBasisChoiceFactory();
 	bool operator()() override;
 };
-
 class AlwaysZeroOneBasisChoiceFactory : public BoolFactory {
+public:
+	AlwaysZeroOneBasisChoiceFactory();
 	bool operator()() override;
 };
+BoolFactory* chooseBasisChoiceFactory();
 
-struct QuantumEfficiencyFactoryInfo {
-	string name;
-	BoolFactory *generator;
-	QuantumEfficiencyFactoryInfo(string _name, BoolFactory *qeg);
-};
 
 class IdealQuantumEfficiencyFactory : public BoolFactory {
+public:
+	IdealQuantumEfficiencyFactory();
 	bool operator()() override;
 };
+BoolFactory* chooseQuantumEfficiencyFactory();
 
-struct AbsorptionRateFactoryInfo {
-	string name;
-	BoolFactory *generator;
-	AbsorptionRateFactoryInfo(string _name, BoolFactory *arg);
-};
 
 class IdealAbsorptionRateFactory : public BoolFactory {
+public:
+	IdealAbsorptionRateFactory();
 	bool operator()() override;
 };
-
-class AlmostIdealAbsorptionRateFactory : public BoolFactory {
+class PercentAbsorptionRateFactory : public BoolFactory {
+	double percentAbsorbed;
+public:
+	PercentAbsorptionRateFactory();
+	PercentAbsorptionRateFactory(double percent);
 	bool operator()() override;
 };
+BoolFactory* chooseAbsorptionRateFactory();
 
 #endif

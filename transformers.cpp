@@ -1,20 +1,34 @@
+#include <iostream>
 #include <random>
 #include <complex>
+#include <string>
 
 #include "transformers.h"
 
 using namespace std;
 
-StateDeviationTransformerInfo::StateDeviationTransformerInfo(string _name, StateTransformer *sdg) {
-	name = _name;
-	generator = sdg;
-}
 
+IdealStateDeviationTransformer::IdealStateDeviationTransformer() {
+	name = "Ideal State Deviation Transformer";
+}
 state IdealStateDeviationTransformer::operator()(state s) {
 	return s;
 }
 
-state UniformCentiRadianStateDeviationTransformer::operator()(state s) {
+UniformRadianStateDeviationTransformer::UniformRadianStateDeviationTransformer(double radians) {
+	gen = default_random_engine();
+	dist = uniform_real_distribution<double>(-radians, radians);
+	name = to_string(radians) + " radian Uniform Random State Deviation Transformer";
+}
+UniformRadianStateDeviationTransformer::UniformRadianStateDeviationTransformer() {
+	gen = default_random_engine();
+	cout << "Enter maximum radian deviation for uniform distribution(r), i.e. Uniform distribution from [-r,r]: ";
+	double radians;
+	cin >> radians;
+	dist = uniform_real_distribution<double>(-radians, radians);
+	name = to_string(radians) + " radian Uniform Random State Deviation Transformer";
+}
+state UniformRadianStateDeviationTransformer::operator()(state s) {
 	auto zero_amp = s.first;
 	auto one_amp = s.second;
 
@@ -40,11 +54,67 @@ state UniformCentiRadianStateDeviationTransformer::operator()(state s) {
 	return make_pair(deviated_zero_amp, deviated_one_amp);
 }
 
-BasisDeviationTransformerInfo::BasisDeviationTransformerInfo(string _name, BasisTransformer *bdg) {
-	name = _name;
-	generator = bdg;
+StateTransformer* chooseStateDeviationTransformer() {
+	StateTransformer* chosenTransformer;
+	vector<string> transformers {"Ideal State Deviation Transformer, No deviation from generated state",
+							  "Uniform Random Radian State Deviation Transformer, deviates Bloch Sphere angles uniformly random b/w [-r,r]"};
+
+	int index = 1;
+	for (auto name: transformers) {
+		cout << index << ")" << name << endl;
+		index++;
+	}
+	cout << "Choose which State Deviation Transformer to use: ";
+	int choice;
+	cin >> choice;
+	switch(choice) {
+		case 1: {
+			chosenTransformer = new IdealStateDeviationTransformer();
+			break;
+		}
+		case 2: {
+			chosenTransformer = new UniformRadianStateDeviationTransformer();
+			break;
+		}
+		default:{
+			cout << "Out of Index State Deviation Transformer choice" << endl;
+			throw -1;
+		}
+	}
+
+	return chosenTransformer;
 }
 
+
+IdealBasisDeviationTransformer::IdealBasisDeviationTransformer() {
+	name = "Ideal Basis Deviation Transformer";
+}
 basis IdealBasisDeviationTransformer::operator()(basis b){
 	return b;
+}
+
+BasisTransformer* chooseBasisDeviationTransformer() {
+	BasisTransformer* chosenTransformer;
+	vector<string> transformers {"Ideal Basis Deviation Transformer, able to measure qubit in basis with exact precision"};
+
+	int index = 1;
+	for (auto name: transformers) {
+		cout << index << ")" << name << endl;
+		index++;
+	}
+	cout << "Choose which Basis Deviation Transformer to use: ";
+	int choice;
+	cin >> choice;
+	switch(choice) {
+		case 1: {
+			chosenTransformer = new IdealBasisDeviationTransformer();
+			break;
+		}
+		default:{
+			cout << "Out of Index Basis Deviation Transformer choice" << endl;
+			throw -1;
+		}
+	}
+
+	return chosenTransformer;
 }
